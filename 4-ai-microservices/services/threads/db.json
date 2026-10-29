@@ -1,0 +1,8 @@
+{
+  "threads": [
+    { "id": 1, "title": "¿Qué pasa con el Lich?", "createdBy": 4, "tag": "misterio", "createdAt": "2026-10-20T14:10:00.000Z" },
+    { "id": 2, "title": "Fiesta en el Dulce Reino mañana", "createdBy": 3, "tag": "eventos", "createdAt": "2026-10-22T18:30:00.000Z" },
+    { "id": 3, "title": "Busco una guitarra nueva", "createdBy": 1, "tag": "mercado", "createdAt": "2026-10-24T21:05:00.000Z" },
+    { "id": 4, "title": "Ideas para el torneo de videojuegos de BMO", "createdBy": 5, "tag": "comunidad", "createdAt": "2026-10-27T16:45:00.000Z" }
+  ]
+}

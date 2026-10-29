@@ -1,0 +1,10 @@
+{
+  "users": [
+    { "id": 1, "username": "marceline", "name": "Marceline Abadeer", "bio": "Reina vampiro de 1000 años, música y bajista", "color": "#a855f7" },
+    { "id": 2, "username": "finn", "name": "Finn Mertens", "bio": "Aventurero y héroe, defensor del bien", "color": "#3b82f6" },
+    { "id": 3, "username": "pb", "name": "Bonnibel Bubblegum", "bio": "Científica y gobernante del Dulce Reino", "color": "#ec4899" },
+    { "id": 4, "username": "jake", "name": "Jake el Perro", "bio": "Perro mágico, aventurero y papá", "color": "#f59e0b" },
+    { "id": 5, "username": "bmo", "name": "BMO", "bio": "Consola de videojuegos, cámara y mejor amigo", "color": "#14b8a6" },
+    { "id": 6, "username": "simon", "name": "Simon Petrikov", "bio": "Ex Rey Helado, historiador y coleccionista de coronas", "color": "#06b6d4" }
+  ]
+}

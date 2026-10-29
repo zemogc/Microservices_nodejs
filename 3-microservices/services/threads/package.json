@@ -1,7 +1,13 @@
 {
+  "name": "threads",
+  "version": "2.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "koa": "^1.2.5",
-    "koa-router": "^5.4.0"
+    "@koa/router": "^15.7.0",
+    "koa": "^3.2.1"
   },
   "scripts": {
     "start": "node server.js"

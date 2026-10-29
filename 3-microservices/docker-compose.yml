@@ -1,0 +1,15 @@
+# Local run of part 3: nginx plays the role of the ALB path-based rules (rule.json)
+services:
+  users:
+    build: ./services/users
+  threads:
+    build: ./services/threads
+  posts:
+    build: ./services/posts
+  alb:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [users, threads, posts]

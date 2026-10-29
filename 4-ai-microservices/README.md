@@ -55,18 +55,26 @@ moderación nunca tumba la funcionalidad principal.
 
 ## Observabilidad y protección
 
-- **Trazas entre servicios**: el gateway asigna un  (o respeta el que llega) y cada
+- **Trazas entre servicios**: el gateway asigna un `x-request-id` (o respeta el que llega) y cada
   servicio lo reenvía en sus llamadas. Un solo id sigue la petición de punta a punta:
 
-  \{"ts":"2026-10-29T16:36:53.367Z","service":"posts","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":45}
-{"ts":"2026-10-29T16:36:53.361Z","service":"ai","requestId":"demo-trace-42","method":"POST","path":"/api/ai/moderate","status":200,"ms":10}
-{"ts":"2026-10-29T16:36:53.373Z","service":"gateway","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":74}- **Logs JSON** de una línea por petición, listos para CloudWatch Logs Insights.
-- **Métricas**:  de cada servicio incluye  y  (5xx); el panel de la web los muestra.
-- **Rate limit**: las llamadas que gastan IA ( y ) tienen un límite por
-  cliente y minuto; al superarlo el gateway responde  con .
-- **Cabeceras de seguridad**: CSP estricta (), , .
-- **Límite de tamaño**: cuerpos de más de 100 KB se rechazan con  antes de llegar a los servicios.
-- **Arranque ordenado**: Docker Compose espera a que cada servicio pase su  antes de
+  ```bash
+  curl -X POST localhost:8080/api/posts -H 'x-request-id: demo-trace-42' \
+       -H 'content-type: application/json' -d '{"thread":2,"user":5,"text":"BMO lleva los controles"}'
+  docker compose logs --no-log-prefix | grep demo-trace-42
+  ```
+  ```json
+  {"service":"ai","requestId":"demo-trace-42","method":"POST","path":"/api/ai/moderate","status":200,"ms":10}
+  {"service":"posts","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":45}
+  {"service":"gateway","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":74}
+  ```
+- **Logs JSON** de una línea por petición, listos para CloudWatch Logs Insights.
+- **Métricas**: el `/health` de cada servicio incluye `requests` y `errors` (5xx); el panel de la web los muestra.
+- **Rate limit**: las llamadas que gastan IA (`POST /api/ai/*` y `POST /api/posts`) tienen un límite por
+  cliente y minuto; al superarlo el gateway responde `429` con `Retry-After`.
+- **Cabeceras de seguridad**: CSP estricta (`script-src 'self'`), `nosniff`, `no-referrer`.
+- **Límite de tamaño**: cuerpos de más de 100 KB se rechazan con `413` antes de llegar a los servicios.
+- **Arranque ordenado**: Docker Compose espera a que cada servicio pase su `HEALTHCHECK` antes de
   abrir el gateway.
 
 ## Ejecutar

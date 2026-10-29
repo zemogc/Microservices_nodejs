@@ -34,4 +34,11 @@ services:
     build: ./services/gateway
     ports:
       - "8080:3000"
-    depends_on: [users, threads, posts, ai]
+    environment:
+      <<: *env
+      AI_RATE_LIMIT: ${AI_RATE_LIMIT:-20}
+    depends_on:
+      users: { condition: service_healthy }
+      threads: { condition: service_healthy }
+      posts: { condition: service_healthy }
+      ai: { condition: service_healthy }

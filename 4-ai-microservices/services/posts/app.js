@@ -2,15 +2,16 @@ const Koa = require('koa');
 const Router = require('@koa/router');
 const { bodyParser } = require('@koa/bodyparser');
 const seed = require('./db.json');
+const { observability } = require('./observability');
 
 // Asks the ai service whether a post can be published. If the ai service
 // is down or slow we publish anyway: moderation must never take posts down.
-async function moderate(text, aiUrl) {
+async function moderate(text, aiUrl, headers) {
   if (!aiUrl) return null;
   try {
     const res = await fetch(`${aiUrl}/api/ai/moderate`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify({ text }),
       signal: AbortSignal.timeout(Number(process.env.MODERATION_TIMEOUT_MS) || 15000),
     });
@@ -25,15 +26,9 @@ function createApp(data = structuredClone(seed), { aiUrl = process.env.AI_URL } 
   const router = new Router();
   let nextId = Math.max(0, ...data.posts.map((p) => p.id)) + 1;
 
-  // Log requests
-  app.use(async (ctx, next) => {
-    const start = Date.now();
-    await next();
-    if (process.env.NODE_ENV !== 'test') {
-      console.log('[posts] %s %s - %s - %sms', ctx.method, ctx.url, ctx.status, Date.now() - start);
-    }
-  });
-  app.use(bodyParser());
+  const obs = observability('posts');
+  app.use(obs.middleware);
+  app.use(bodyParser({ jsonLimit: '100kb' }));
 
   router.get('/api/posts', (ctx) => {
     ctx.body = data.posts;
@@ -55,7 +50,7 @@ function createApp(data = structuredClone(seed), { aiUrl = process.env.AI_URL } 
     if (!Number.isInteger(user)) ctx.throw(400, 'user must be a user id');
     if (typeof text !== 'string' || !text.trim()) ctx.throw(400, 'text is required');
 
-    const verdict = await moderate(text, aiUrl);
+    const verdict = await moderate(text, aiUrl, obs.forward(ctx));
     if (verdict && verdict.allowed === false) {
       ctx.status = 422;
       ctx.body = { error: 'Post rejected by moderation', moderation: verdict };
@@ -76,7 +71,7 @@ function createApp(data = structuredClone(seed), { aiUrl = process.env.AI_URL } 
   });
 
   router.get('/health', (ctx) => {
-    ctx.body = { service: 'posts', status: 'ok', uptime: process.uptime(), count: data.posts.length };
+    ctx.body = { service: 'posts', status: 'ok', uptime: process.uptime(), ...obs.stats, count: data.posts.length };
   });
 
   app.use(router.routes());

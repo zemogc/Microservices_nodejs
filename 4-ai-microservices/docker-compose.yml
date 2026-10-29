@@ -1,0 +1,37 @@
+# Ooo Forum: 4 microservices behind an API gateway. Open http://localhost:8080
+# Optional: export ANTHROPIC_API_KEY=... before `docker compose up` to use Claude.
+x-service: &service
+  restart: unless-stopped
+  environment: &env
+    USERS_URL: http://users:3000
+    THREADS_URL: http://threads:3000
+    POSTS_URL: http://posts:3000
+    AI_URL: http://ai:3000
+
+services:
+  users:
+    <<: *service
+    build: ./services/users
+
+  threads:
+    <<: *service
+    build: ./services/threads
+
+  posts:
+    <<: *service
+    build: ./services/posts
+
+  ai:
+    <<: *service
+    build: ./services/ai
+    environment:
+      <<: *env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
+
+  gateway:
+    <<: *service
+    build: ./services/gateway
+    ports:
+      - "8080:3000"
+    depends_on: [users, threads, posts, ai]

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ooo Forum · Microservicios + IA</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍬</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🍬</span>
+      <div>
+        <h1>Ooo Forum</h1>
+        <p>Microservicios Node.js + IA con Claude</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="ai-badge" class="badge">IA: …</span>
+      <label class="as-user">
+        <span>Publicando como</span>
+        <select id="current-user"></select>
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel threads-panel">
+      <div class="panel-head">
+        <h2>Hilos</h2>
+        <button id="new-thread-btn" class="btn btn-small">+ Nuevo</button>
+      </div>
+      <ul id="thread-list" class="thread-list"></ul>
+    </aside>
+
+    <section class="panel thread-view" id="thread-view">
+      <div class="empty">Elige un hilo para empezar</div>
+    </section>
+
+    <aside class="panel infra-panel">
+      <div class="panel-head">
+        <h2>Arquitectura en vivo</h2>
+        <span id="health-dot" class="dot"></span>
+      </div>
+      <div id="architecture" class="architecture"></div>
+      <h3 class="subhead">Peticiones recientes</h3>
+      <ol id="request-log" class="request-log"></ol>
+    </aside>
+  </main>
+
+  <dialog id="new-thread-dialog" class="dialog">
+    <form method="dialog" id="new-thread-form">
+      <h2>Nuevo hilo</h2>
+      <label>Título <input name="title" required maxlength="120" placeholder="¿De qué quieres hablar?"></label>
+      <label>Etiqueta
+        <select name="tag">
+          <option>general</option><option>eventos</option><option>misterio</option>
+          <option>mercado</option><option>comunidad</option>
+        </select>
+      </label>
+      <label>Primer mensaje <textarea name="text" required rows="3" placeholder="Escribe el primer mensaje…"></textarea></label>
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate class="btn btn-ghost">Cancelar</button>
+        <button value="ok" class="btn">Crear hilo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

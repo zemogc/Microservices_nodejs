@@ -1,0 +1,17 @@
+{
+  "name": "ooo-forum-microservices",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Evolución de un monolito Node.js a microservicios en AWS ECS, con un servicio de IA basado en Claude",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "4-ai-microservices/services/*"
+  ],
+  "scripts": {
+    "dev": "node 4-ai-microservices/dev.js",
+    "test": "node --test \"4-ai-microservices/services/*/test/*.test.js\""
+  }
+}

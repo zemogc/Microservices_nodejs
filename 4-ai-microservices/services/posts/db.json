@@ -1,0 +1,15 @@
+{
+  "posts": [
+    { "id": 1, "thread": 1, "user": 4, "text": "¿Alguien ha ido a ver al Lich últimamente? La cueva está demasiado callada.", "createdAt": "2026-10-20T14:10:00.000Z" },
+    { "id": 2, "thread": 1, "user": 2, "text": "Mañana paso por allá a revisar cómo sigue. Llevo mi espada por si acaso.", "createdAt": "2026-10-20T15:02:00.000Z" },
+    { "id": 3, "thread": 1, "user": 3, "text": "Instalé sensores en la entrada. Las lecturas de energía subieron un 40% esta semana, eso no es buena señal.", "createdAt": "2026-10-20T17:40:00.000Z" },
+    { "id": 4, "thread": 2, "user": 3, "text": "¡Vengan a la fiesta con la gente dulce mañana a las 7! Habrá pastel y música en vivo.", "createdAt": "2026-10-22T18:30:00.000Z" },
+    { "id": 5, "thread": 2, "user": 2, "text": "¡Matemático!", "createdAt": "2026-10-22T18:41:00.000Z" },
+    { "id": 6, "thread": 2, "user": 1, "text": "Llevo mi bajo-hacha. Que alguien traiga un amplificador.", "createdAt": "2026-10-22T19:15:00.000Z" },
+    { "id": 7, "thread": 2, "user": 5, "text": "¡BMO puede ser el amplificador! Y también la cámara de fotos.", "createdAt": "2026-10-22T19:20:00.000Z" },
+    { "id": 8, "thread": 3, "user": 1, "text": "Necesito una guitarra nueva para tocar los riffs más sabrosos de Ooo. ¿Recomendaciones?", "createdAt": "2026-10-24T21:05:00.000Z" },
+    { "id": 9, "thread": 3, "user": 6, "text": "Tengo una guitarra vieja de antes de la Guerra de los Champiñones. Necesita cuerdas, pero suena hermosa.", "createdAt": "2026-10-25T09:12:00.000Z" },
+    { "id": 10, "thread": 4, "user": 5, "text": "¡Quiero organizar un torneo! ¿Qué juegos les gustaría jugar?", "createdAt": "2026-10-27T16:45:00.000Z" },
+    { "id": 11, "thread": 4, "user": 4, "text": "Algo cooperativo, para no pelear con Finn otra vez.", "createdAt": "2026-10-27T17:01:00.000Z" }
+  ]
+}

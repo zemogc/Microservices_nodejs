@@ -110,4 +110,48 @@ function moderate(text) {
   };
 }
 
-module.exports = { summarize, suggestReply, moderate };
+const QUESTION_WORDS = new Set('alguien alguna alguno algún sabe saben quién quiénes cuándo dónde cuál cuáles cómo hacer existe ahora'.split(' '));
+
+// Ranks posts by how many question keywords they share. Comparing 5-letter
+// stems lets "guitarras" match "guitarra" and "fiestas" match "fiesta".
+function ask({ threads, posts, users }, question) {
+  const stem = (w) => w.slice(0, 5);
+  const terms = new Set(
+    words(question)
+      .filter((w) => w.length >= 4 && !STOPWORDS.has(w) && !QUESTION_WORDS.has(w))
+      .map(stem)
+  );
+  const nameOf = (id) => users.find((u) => u.id === id)?.name ?? `usuario ${id}`;
+
+  const scored = posts
+    .map((post) => {
+      const thread = threads.find((t) => t.id === post.thread);
+      const text = `${thread?.title ?? ''} ${post.text}`;
+      const score = new Set(words(text).map(stem).filter((s) => terms.has(s))).size;
+      return { post, thread, score };
+    })
+    .filter((s) => s.score > 0 && s.thread)
+    .sort((a, b) => b.score - a.score || b.post.id - a.post.id);
+
+  const best = [];
+  for (const s of scored) {
+    if (!best.some((b) => b.thread.id === s.thread.id)) best.push(s);
+    if (best.length === 2) break;
+  }
+
+  if (!best.length) {
+    return { answer: 'No encontré nada en el foro sobre eso. ¡Podrías abrir un hilo nuevo!', sources: [] };
+  }
+  const answer = best
+    .map(({ post, thread }) => `En «${thread.title}», ${nameOf(post.user)} dijo: “${shorten(post.text, 120)}”`)
+    .join(' ');
+  return {
+    answer,
+    sources: best.map(({ thread, score }) => ({
+      threadId: thread.id,
+      reason: `Coincide con ${score} ${score === 1 ? 'término' : 'términos'} de tu pregunta`,
+    })),
+  };
+}
+
+module.exports = { summarize, suggestReply, moderate, ask };

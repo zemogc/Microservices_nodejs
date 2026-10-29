@@ -28,12 +28,23 @@
   </header>
 
   <main class="layout">
-    <aside class="panel threads-panel">
-      <div class="panel-head">
-        <h2>Hilos</h2>
-        <button id="new-thread-btn" class="btn btn-small">+ Nuevo</button>
-      </div>
-      <ul id="thread-list" class="thread-list"></ul>
+    <aside class="sidebar">
+      <section class="panel ask-panel">
+        <h2>🔮 Pregúntale al foro</h2>
+        <form id="ask-form" class="ask-form">
+          <input id="ask-input" maxlength="500" placeholder="¿Alguien vende guitarras?" aria-label="Pregunta">
+          <button class="btn btn-ai btn-small" id="ask-btn">Preguntar</button>
+        </form>
+        <div id="ask-result"></div>
+      </section>
+
+      <section class="panel threads-panel">
+        <div class="panel-head">
+          <h2>Hilos</h2>
+          <button id="new-thread-btn" class="btn btn-small">+ Nuevo</button>
+        </div>
+        <ul id="thread-list" class="thread-list"></ul>
+      </section>
     </aside>
 
     <section class="panel thread-view" id="thread-view">

@@ -117,7 +117,8 @@ function renderThread() {
 
 function aiMeta(r) {
   const how = r.mode === 'claude' ? `Claude · ${r.model}` : 'modo demo local';
-  return `<div class="ai-meta">Generado con ${esc(how)} en ${r.ms} ms</div>`;
+  const when = r.cached ? 'desde caché (sin llamar a la IA)' : `en ${r.ms} ms`;
+  return `<div class="ai-meta">Generado con ${esc(how)} ${when}</div>`;
 }
 
 /* ---------- Actions ---------- */
@@ -186,6 +187,24 @@ function publish(event) {
   });
 }
 
+function askForum(event) {
+  event.preventDefault();
+  const question = $('#ask-input').value.trim();
+  if (!question) return toast('Escribe una pregunta', 'error');
+
+  return withLoading($('#ask-btn'), async () => {
+    const r = await api('/api/ai/ask', { method: 'POST', body: { question } });
+    const sources = r.sources
+      .map((s) => `<a class="source" href="#/thread/${s.threadId}"><b>${esc(s.title)}</b><span>${esc(s.reason)}</span></a>`)
+      .join('');
+    $('#ask-result').innerHTML = `<div class="ask-answer">
+      <p>${esc(r.answer)}</p>
+      <div class="sources">${sources}</div>
+      ${aiMeta(r)}
+    </div>`;
+  });
+}
+
 async function createThread(form) {
   const data = new FormData(form);
   try {
@@ -212,7 +231,7 @@ const DESCRIPTIONS = {
   users: 'Perfiles · GET /api/users',
   threads: 'Hilos · GET/POST /api/threads',
   posts: 'Mensajes · moderados por IA',
-  ai: 'Claude · resumen, respuestas, moderación',
+  ai: 'Claude · resúmenes, preguntas, moderación',
 };
 
 async function refreshHealth() {
@@ -281,6 +300,7 @@ async function boot() {
 
 window.addEventListener('hashchange', route);
 $('#new-thread-btn').onclick = () => $('#new-thread-dialog').showModal();
+$('#ask-form').onsubmit = askForum;
 $('#new-thread-form').addEventListener('submit', (e) => {
   if (e.submitter?.value === 'ok') createThread(e.target);
 });

@@ -1,4 +1,7 @@
 const state = { users: [], threads: [], posts: [], currentThread: null };
+// Ids of the writes this tab made, so it can ignore its own live events
+const myRequests = new Set();
+const newRequestId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -9,14 +12,17 @@ const fmtDate = (iso) => new Date(iso).toLocaleString('es', { day: 'numeric', mo
 // Every API call goes through the gateway and is shown in the request log
 async function api(path, options = {}) {
   const started = performance.now();
+  const requestId = newRequestId();
+  if (options.method === 'POST' && ['/api/posts', '/api/threads'].includes(path)) myRequests.add(requestId);
   const res = await fetch(path, {
     ...options,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-request-id': requestId },
     body: options.body && JSON.stringify(options.body),
   });
   logRequest(options.method || 'GET', path, res.status, Math.round(performance.now() - started));
   const data = await res.json().catch(() => null);
   if (!res.ok) {
+    myRequests.delete(requestId);
     const err = new Error(data?.error || data?.message || `Error ${res.status}`);
     err.data = data;
     throw err;
@@ -76,17 +82,21 @@ function postHtml(p) {
   </article>`;
 }
 
+function threadMeta(t) {
+  const count = state.posts.filter((p) => p.thread === t.id).length;
+  return `Creado por ${userById(t.createdBy).name} · ${fmtDate(t.createdAt)} · ${count} mensajes`;
+}
+
 function renderThread() {
   const t = state.currentThread;
   if (!t) return;
   const posts = state.posts.filter((p) => p.thread === t.id);
-  const author = userById(t.createdBy);
 
   $('#thread-view').innerHTML = `
     <div class="thread-header">
       <span class="tag">${esc(t.tag)}</span>
       <h2>${esc(t.title)}</h2>
-      <div class="meta">Creado por ${esc(author.name)} · ${fmtDate(t.createdAt)} · ${posts.length} mensajes</div>
+      <div class="meta">${esc(threadMeta(t))}</div>
     </div>
 
     <div class="ai-card">
@@ -273,6 +283,66 @@ async function refreshAiBadge() {
   }
 }
 
+/* ---------- Live updates ---------- */
+
+// Adds what another tab (or this one) just created, without wiping what the user is typing
+function receivePost(post) {
+  if (state.posts.some((p) => p.id === post.id)) return;
+  state.posts.push(post);
+  renderThreadList();
+  if (state.currentThread?.id !== post.thread) {
+    const thread = state.threads.find((t) => t.id === post.thread);
+    toast(`💬 ${userById(post.user).name} escribió en «${thread?.title ?? 'un hilo'}»`);
+    return;
+  }
+  const list = $('.posts');
+  list.insertAdjacentHTML('beforeend', postHtml(post));
+  list.lastElementChild.classList.add('fresh');
+  $('.thread-header .meta').textContent = threadMeta(state.currentThread);
+}
+
+function receiveThread(thread) {
+  if (state.threads.some((t) => t.id === thread.id)) return;
+  state.threads.unshift(thread);
+  renderThreadList();
+  toast(`🧵 Nuevo hilo: «${thread.title}»`);
+}
+
+function connectLive() {
+  const badge = $('#live-badge');
+  const setLive = (on) => {
+    badge.lastChild.textContent = on ? 'En vivo' : 'Reconectando…';
+    badge.firstChild.className = `dot ${on ? 'up' : 'down'}`;
+  };
+  // EventSource reconnects by itself; we only reflect the state
+  const source = new EventSource('/api/events');
+  source.onopen = () => setLive(true);
+  source.onerror = () => setLive(false);
+  const handle = (receive) => (e) => {
+    const { requestId, item } = JSON.parse(e.data);
+    if (myRequests.delete(requestId)) return;
+    receive(item);
+  };
+  source.addEventListener('post', handle(receivePost));
+  source.addEventListener('thread', handle(receiveThread));
+}
+
+/* ---------- Theme ---------- */
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('#theme-btn').textContent = theme === 'dark' ? '☀️' : '🌙';
+  $('#theme-btn').title = theme === 'dark' ? 'Tema claro' : 'Tema oscuro';
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try {
+    localStorage.setItem('theme', next);
+  } catch {}
+}
+
 /* ---------- Routing & boot ---------- */
 
 function route() {
@@ -297,11 +367,14 @@ async function boot() {
   renderUsers();
   refreshAiBadge();
   route();
+  connectLive();
 }
 
 window.addEventListener('hashchange', route);
 $('#new-thread-btn').onclick = () => $('#new-thread-dialog').showModal();
 $('#ask-form').onsubmit = askForum;
+$('#theme-btn').onclick = toggleTheme;
+applyTheme(document.documentElement.dataset.theme);
 $('#new-thread-form').addEventListener('submit', (e) => {
   if (e.submitter?.value === 'ok') createThread(e.target);
 });

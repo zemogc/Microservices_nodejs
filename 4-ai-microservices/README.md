@@ -24,7 +24,7 @@ moderar mensajes antes de publicarlos.
 | `threads` | Hilos | `GET /api/threads`, `GET /api/threads/:id`, `POST /api/threads` |
 | `posts`   | Mensajes, moderados por `ai` | `GET /api/posts`, `GET /api/posts/in-thread/:id`, `GET /api/posts/by-user/:id`, `POST /api/posts` |
 | `ai`      | Funciones de IA | `POST /api/ai/summarize`, `POST /api/ai/suggest-reply`, `POST /api/ai/ask`, `POST /api/ai/moderate`, `GET /api/ai/status` |
-| `gateway` | Ruteo, estáticos, salud | `GET /api/health`, `/*` |
+| `gateway` | Ruteo, estáticos, salud, tiempo real | `GET /api/health`, `GET /api/events`, `/*` |
 
 Todos exponen `GET /health`.
 
@@ -76,6 +76,22 @@ moderación nunca tumba la funcionalidad principal.
 - **Límite de tamaño**: cuerpos de más de 100 KB se rechazan con `413` antes de llegar a los servicios.
 - **Arranque ordenado**: Docker Compose espera a que cada servicio pase su `HEALTHCHECK` antes de
   abrir el gateway.
+
+## Tiempo real
+
+Todas las escrituras pasan por el gateway, así que es él quien avisa a los navegadores: después de
+cada `201` en `POST /api/posts` o `POST /api/threads` emite un evento por `GET /api/events`
+(Server-Sent Events). Los servicios no saben nada de esto.
+
+```
+event: post
+data: {"requestId":"3f9c…","item":{"id":12,"thread":4,"user":2,"text":"…"}}
+```
+
+Cada pestaña manda su propio `x-request-id` al escribir y descarta los eventos que traen ese id, así
+no recibe dos veces lo que acaba de publicar. Con varias instancias del gateway, cada una solo avisa
+a sus propios clientes; en producción se reparte con Redis pub/sub, SNS o similar. Detrás de un ALB
+conviene subir el *idle timeout* por encima del latido de 25 s del stream.
 
 ## Ejecutar
 

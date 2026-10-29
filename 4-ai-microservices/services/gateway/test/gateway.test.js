@@ -46,3 +46,26 @@ test('serves the web app', async (t) => {
   const html = await (await fetch(`${url}/`)).text();
   assert.match(html, /Ooo Forum/);
 });
+
+test('pushes new posts to browsers listening on /api/events', async (t) => {
+  process.env.POSTS_URL = await listen((req, res) => {
+    res.statusCode = 201;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ id: 77, thread: 1, user: 2, text: 'En vivo' }));
+  }, t);
+  const url = await listen(createApp(), t);
+
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const stream = await fetch(`${url}/api/events`, { signal: controller.signal });
+  assert.match(stream.headers.get('content-type'), /^text\/event-stream/);
+  const reader = stream.body.pipeThrough(new TextDecoderStream()).getReader();
+  await reader.read(); // retry hint
+
+  await fetch(`${url}/api/posts`, { method: 'POST', body: '{}', headers: { 'x-request-id': 'tab-1' } });
+  const { value } = await reader.read();
+  assert.match(value, /^event: post\n/);
+  const event = JSON.parse(value.split('data: ')[1]);
+  assert.equal(event.item.id, 77);
+  assert.equal(event.requestId, 'tab-1'); // lets the tab that wrote it skip its own event
+});

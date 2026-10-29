@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -19,11 +20,13 @@
       </div>
     </div>
     <div class="topbar-right">
+      <span id="live-badge" class="badge live" title="Mensajes nuevos llegan en tiempo real"><span class="dot"></span>Conectando…</span>
       <span id="ai-badge" class="badge">IA: …</span>
       <label class="as-user">
         <span>Publicando como</span>
         <select id="current-user"></select>
       </label>
+      <button id="theme-btn" class="icon-btn" type="button" aria-label="Cambiar tema">🌙</button>
     </div>
   </header>
 

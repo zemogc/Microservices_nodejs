@@ -3,6 +3,7 @@ const Koa = require('koa');
 const Router = require('@koa/router');
 const serve = require('koa-static');
 const { observability } = require('./observability');
+const { createEventHub } = require('./events');
 
 const services = () => ({
   users: process.env.USERS_URL || 'http://localhost:3001',
@@ -18,6 +19,9 @@ const ROUTES = [
   ['/api/posts', 'posts'],
   ['/api/ai', 'ai'],
 ];
+
+// Successful creations that are pushed to browsers over /api/events
+const LIVE_EVENTS = { '/api/posts': 'post', '/api/threads': 'thread' };
 
 const MAX_BODY_BYTES = 100 * 1024;
 
@@ -108,6 +112,12 @@ function createApp() {
   // Behind an ALB the client address comes in X-Forwarded-For
   app.proxy = process.env.TRUST_PROXY === 'true';
   const router = new Router();
+  const events = createEventHub();
+  // A browser closing its /api/events stream is routine, not an error worth logging
+  app.on('error', (err) => {
+    if (err.code === 'ERR_STREAM_PREMATURE_CLOSE' || err.status < 500) return;
+    console.error(JSON.stringify({ ts: new Date().toISOString(), service: 'gateway', error: err.message }));
+  });
 
   const obs = observability('gateway', { quiet: (path) => !path.startsWith('/api') || path === '/api/health' });
   app.use(obs.middleware);
@@ -124,7 +134,7 @@ function createApp() {
   router.get('/api/health', async (ctx) => {
     const checks = await Promise.all(Object.entries(services()).map(([name, url]) => probe(name, url)));
     ctx.body = {
-      gateway: { status: 'up', uptime: process.uptime(), ...obs.stats },
+      gateway: { status: 'up', uptime: process.uptime(), ...obs.stats, liveClients: events.size() },
       services: checks,
       healthy: checks.every((c) => c.status === 'up'),
     };
@@ -134,11 +144,23 @@ function createApp() {
     ctx.body = { service: 'gateway', status: 'ok', uptime: process.uptime(), ...obs.stats };
   });
 
+  router.get('/api/events', (ctx) => events.subscribe(ctx));
+
   app.use(router.routes());
   app.use(async (ctx, next) => {
     const route = ROUTES.find(([prefix]) => ctx.path === prefix || ctx.path.startsWith(`${prefix}/`));
     if (!route) return next();
     await proxy(ctx, services()[route[1]], obs.forward(ctx));
+
+    // Tell every open browser about what was just created
+    const created = LIVE_EVENTS[ctx.path];
+    if (ctx.method === 'POST' && ctx.status === 201 && created) {
+      try {
+        events.publish(created, { requestId: ctx.state.requestId, item: JSON.parse(ctx.body.toString()) });
+      } catch {
+        // A non-JSON answer is not worth breaking the request over
+      }
+    }
   });
   app.use(serve(path.join(__dirname, 'public')));
   return app;

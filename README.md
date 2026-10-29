@@ -10,7 +10,7 @@ microservicios en contenedores, desplegable en AWS ECS y con un servicio de IA b
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![AWS ECS](https://img.shields.io/badge/AWS-ECS%20%2B%20ALB-FF9900?logo=amazonwebservices&logoColor=white)
 ![Claude](https://img.shields.io/badge/IA-Claude-D97757?logo=anthropic&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-21%20passing-34d399)
+![Tests](https://img.shields.io/badge/tests-31%20passing-34d399)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
 ![Ooo Forum: vista principal](docs/screenshots/01-foro.png)
@@ -28,6 +28,20 @@ Un recorrido práctico en cuatro etapas. Cada carpeta es una versión funcional 
 | 2 | [`2-containerized`](2-containerized/) | Monolito en un contenedor en ECS | Empaquetar y desplegar con Docker + ECR |
 | 3 | [`3-microservices`](3-microservices/) | 3 servicios detrás de un ALB | Separar por dominio y rutear por prefijo |
 | 4 | [`4-ai-microservices`](4-ai-microservices/) | 5 servicios + gateway + **IA** + web | Comunicación entre servicios, resiliencia y LLMs en producción |
+
+## 🚀 Funciones de la etapa 4
+
+| | Función | Cómo funciona |
+|---|---|---|
+| ✨ | **Resumen de hilos** | Claude lee el hilo vía tres microservicios y devuelve resumen, sentimiento, temas y próximos pasos (con caché) |
+| 💡 | **Respuesta sugerida** | Escribe la siguiente respuesta con la personalidad del usuario elegido |
+| 🛡️ | **Moderación** | `posts` consulta a `ai` antes de guardar; un insulto devuelve `422` |
+| 🔮 | **Pregúntale al foro** | Preguntas en lenguaje natural sobre todo el foro, con los hilos fuente enlazados |
+| ⚡ | **Tiempo real** | Los mensajes e hilos nuevos aparecen en todas las pestañas abiertas (Server-Sent Events) |
+| 🔎 | **Trazas** | Un `x-request-id` viaja por gateway → posts → ai y aparece en los logs JSON de cada uno |
+| 🚦 | **Rate limit** | Límite por cliente en las llamadas que gastan IA, con `429` + `Retry-After` |
+| 🩺 | **Arquitectura en vivo** | Panel con estado, latencia y tráfico de cada servicio |
+| 🌗 | **Tema claro/oscuro** | Respeta la preferencia del sistema y recuerda tu elección |
 
 ## 📸 Capturas
 
@@ -50,7 +64,26 @@ Un recorrido práctico en cuatro etapas. Cada carpeta es una versión funcional 
       <code>posts</code> consulta a <code>ai</code> antes de guardar; un insulto devuelve <code>422</code>.
       <img src="docs/screenshots/04-moderacion-ia.png" alt="Mensaje bloqueado por la moderación de IA">
     </td>
-    <td width="50%" align="center">
+    <td width="50%">
+      <b>Pregúntale al foro</b><br>
+      Respuestas basadas solo en el contenido del foro, con los hilos fuente enlazados.
+      <img src="docs/screenshots/06-pregunta-al-foro.png" alt="Pregunta respondida con fuentes">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <b>Tiempo real</b><br>
+      El mensaje de Finn se publicó desde otra pestaña y apareció aquí sin recargar.
+      <img src="docs/screenshots/07-tiempo-real.png" alt="Mensaje recibido en tiempo real">
+    </td>
+    <td width="50%">
+      <b>Tema claro</b><br>
+      Sigue la preferencia del sistema; el botón de la barra superior lo cambia.
+      <img src="docs/screenshots/08-tema-claro.png" alt="Tema claro">
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
       <b>Diseño responsive</b><br>
       <img src="docs/screenshots/05-movil.png" alt="Vista móvil" width="260">
     </td>
@@ -65,7 +98,8 @@ Un recorrido práctico en cuatro etapas. Cada carpeta es una versión funcional 
 
 ```mermaid
 flowchart LR
-    B[🌐 Navegador] --> G[🚪 gateway<br/>proxy · SPA · /api/health]
+    B[🌐 Navegador] --> G[🚪 gateway<br/>proxy · SPA · /api/health<br/>rate limit · eventos SSE]
+    G -.->|/api/events| B
     G -->|/api/users| U[users]
     G -->|/api/threads| T[threads]
     G -->|/api/posts| P[posts]
@@ -129,7 +163,7 @@ curl -X POST localhost:8080/api/posts -H 'content-type: application/json' \
 npm test
 ```
 
-Son 21 pruebas con `node:test`, sin dependencias extra. Cubren cada servicio, el gateway y el
+Son 31 pruebas con `node:test`, sin dependencias extra. Cubren cada servicio, el gateway (proxy, rate limit, SSE, cabeceras) y el
 servicio de IA en ambos modos. El modo Claude se prueba contra un servidor falso de la Messages API
 que valida el modelo, el `effort` y el esquema JSON que se envían.
 

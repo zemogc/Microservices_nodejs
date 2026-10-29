@@ -28,6 +28,21 @@ async function loadThread(threadId) {
   return thread && { thread, posts: threadPosts ?? [], users: allUsers ?? [] };
 }
 
+// Everything at once, for questions about the whole forum
+async function loadForum() {
+  const { users, threads, posts } = urls();
+  const [allThreads, allPosts, allUsers] = await Promise.all([
+    getJson(`${threads}/api/threads`),
+    getJson(`${posts}/api/posts`),
+    getJson(`${users}/api/users`),
+  ]);
+  return { threads: allThreads ?? [], posts: allPosts ?? [], users: allUsers ?? [] };
+}
+
+// Summaries only change when a thread gets new posts, so the key includes the last post id
+const MAX_CACHED = 200;
+const summaryKey = ({ thread, posts }) => `${thread.id}:${posts.length}:${posts.at(-1)?.id ?? 0}`;
+
 // Runs a task on Claude when configured, otherwise (or on failure) on the demo engine.
 async function run(name, viaClaude, viaDemo) {
   const started = Date.now();
@@ -47,6 +62,7 @@ async function run(name, viaClaude, viaDemo) {
 function createApp() {
   const app = new Koa();
   const router = new Router();
+  const summaries = new Map();
 
   // Log requests
   app.use(async (ctx, next) => {
@@ -70,7 +86,32 @@ function createApp() {
     const thread = await loadThread(threadId);
     if (!thread) ctx.throw(404, 'Thread not found');
 
-    ctx.body = await run('summarize', () => claude.summarize(thread), () => demo.summarize(thread));
+    const key = summaryKey(thread);
+    if (summaries.has(key)) {
+      ctx.body = { ...summaries.get(key), cached: true, ms: 0 };
+      return;
+    }
+    const result = await run('summarize', () => claude.summarize(thread), () => demo.summarize(thread));
+    // Demo results are instant, and caching them would hide Claude once a key is configured
+    if (result.mode === 'claude') {
+      if (summaries.size >= MAX_CACHED) summaries.delete(summaries.keys().next().value);
+      summaries.set(key, result);
+    }
+    ctx.body = { ...result, cached: false };
+  });
+
+  router.post('/api/ai/ask', async (ctx) => {
+    const question = ctx.request.body?.question;
+    if (typeof question !== 'string' || !question.trim()) ctx.throw(400, 'question is required');
+    if (question.length > 500) ctx.throw(400, 'question is too long');
+    const forum = await loadForum();
+
+    const result = await run('ask', () => claude.ask(forum, question.trim()), () => demo.ask(forum, question.trim()));
+    // Only keep sources that point to real threads, and attach their titles for the UI
+    const sources = result.sources
+      .map((s) => ({ ...s, title: forum.threads.find((t) => t.id === s.threadId)?.title }))
+      .filter((s) => s.title);
+    ctx.body = { ...result, sources };
   });
 
   router.post('/api/ai/suggest-reply', async (ctx) => {

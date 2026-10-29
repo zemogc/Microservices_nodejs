@@ -115,3 +115,78 @@ test('claude mode: falls back to the demo engine when the API fails', async (t) 
   assert.equal(r.allowed, true);
   assert.ok(r.fallbackReason);
 });
+
+// Fake Messages API that always answers with `payload` as the structured output
+async function fakeClaude(t, payload) {
+  const calls = [];
+  process.env.ANTHROPIC_BASE_URL = await listen(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    calls.push(JSON.parse(body));
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
+        id: `msg_${calls.length}`,
+        type: 'message',
+        role: 'assistant',
+        model: 'claude-opus-5-5',
+        content: [{ type: 'text', text: JSON.stringify(payload) }],
+        stop_reason: 'end_turn',
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 10 },
+      })
+    );
+  }, t);
+  process.env.ANTHROPIC_API_KEY = 'test-key';
+  t.after(() => {
+    delete process.env.ANTHROPIC_BASE_URL;
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+  return calls;
+}
+
+test('demo mode: answers questions about the forum citing the source thread', async (t) => {
+  delete process.env.ANTHROPIC_API_KEY;
+  const url = await platform(t);
+
+  const r = await (await post(`${url}/api/ai/ask`, { question: '¿Alguien vende guitarras?' })).json();
+  assert.equal(r.mode, 'demo');
+  assert.equal(r.sources[0].threadId, 3);
+  assert.equal(r.sources[0].title, 'Busco una guitarra nueva');
+  assert.match(r.answer, /guitarra/);
+
+  const none = await (await post(`${url}/api/ai/ask`, { question: '¿Dónde compro naves espaciales?' })).json();
+  assert.deepEqual(none.sources, []);
+  assert.equal((await post(`${url}/api/ai/ask`, { question: ' ' })).status, 400);
+});
+
+test('claude mode: drops sources that point to threads that do not exist', async (t) => {
+  await fakeClaude(t, {
+    answer: 'Simon tiene una guitarra vieja.',
+    sources: [
+      { threadId: 3, reason: 'Simon la ofrece' },
+      { threadId: 999, reason: 'inventado' },
+    ],
+  });
+  const url = await platform(t);
+
+  const r = await (await post(`${url}/api/ai/ask`, { question: '¿Quién tiene guitarra?' })).json();
+  assert.equal(r.mode, 'claude');
+  assert.deepEqual(r.sources.map((s) => s.threadId), [3]);
+});
+
+test('claude mode: caches summaries until the thread gets a new post', async (t) => {
+  const calls = await fakeClaude(t, { summary: 'Resumen', sentiment: 'neutral', topics: ['x'], nextSteps: [] });
+  const url = await platform(t);
+
+  const first = await (await post(`${url}/api/ai/summarize`, { threadId: 1 })).json();
+  const second = await (await post(`${url}/api/ai/summarize`, { threadId: 1 })).json();
+  assert.equal(first.cached, false);
+  assert.equal(second.cached, true);
+  assert.equal(calls.length, 1);
+
+  await post(`${process.env.POSTS_URL}/api/posts`, { thread: 1, user: 2, text: 'Novedades' });
+  const third = await (await post(`${url}/api/ai/summarize`, { threadId: 1 })).json();
+  assert.equal(third.cached, false);
+  assert.equal(calls.length, 2);
+});

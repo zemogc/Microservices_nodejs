@@ -23,7 +23,7 @@ moderar mensajes antes de publicarlos.
 | `users`   | Perfiles | `GET /api/users`, `GET /api/users/:id` |
 | `threads` | Hilos | `GET /api/threads`, `GET /api/threads/:id`, `POST /api/threads` |
 | `posts`   | Mensajes, moderados por `ai` | `GET /api/posts`, `GET /api/posts/in-thread/:id`, `GET /api/posts/by-user/:id`, `POST /api/posts` |
-| `ai`      | Funciones de IA | `POST /api/ai/summarize`, `POST /api/ai/suggest-reply`, `POST /api/ai/moderate`, `GET /api/ai/status` |
+| `ai`      | Funciones de IA | `POST /api/ai/summarize`, `POST /api/ai/suggest-reply`, `POST /api/ai/ask`, `POST /api/ai/moderate`, `GET /api/ai/status` |
 | `gateway` | Ruteo, estáticos, salud | `GET /api/health`, `/*` |
 
 Todos exponen `GET /health`.
@@ -36,6 +36,12 @@ Todos exponen `GET /health`.
 - **Resumen**: `{ summary, sentiment, topics[], nextSteps[] }`
 - **Respuesta sugerida**: escrita con la personalidad del usuario que publica
 - **Moderación**: `{ allowed, reason, categories[] }`; si `allowed` es `false`, `posts` responde `422`
+- **Pregúntale al foro**: `{ answer, sources[] }`. Claude responde usando solo el contenido del foro y
+  cita los hilos que usó; el servicio descarta fuentes que apunten a hilos inexistentes
+
+**Caché.** Los resúmenes de Claude se guardan en memoria con la clave `hilo:cantidad:último mensaje`,
+así que solo se vuelve a llamar a la API cuando el hilo recibe un mensaje nuevo (`cached: true` en la
+respuesta).
 
 Los mensajes del foro se envían dentro de etiquetas `<foro>` y el prompt de sistema le indica al
 modelo tratarlos como datos, no como instrucciones (mitigación básica de *prompt injection*).
@@ -63,7 +69,7 @@ Sin Docker (desde la raíz del repo):
 ```bash
 npm install
 npm run dev     # levanta los 5 servicios en :3001-3004 y el gateway en :8080
-npm test        # 21 pruebas con node:test
+npm test        # pruebas con node:test
 ```
 
 Variables de entorno del servicio `ai`:

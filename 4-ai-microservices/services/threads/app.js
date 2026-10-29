@@ -2,21 +2,16 @@ const Koa = require('koa');
 const Router = require('@koa/router');
 const { bodyParser } = require('@koa/bodyparser');
 const seed = require('./db.json');
+const { observability } = require('./observability');
 
 function createApp(data = structuredClone(seed)) {
   const app = new Koa();
   const router = new Router();
   let nextId = Math.max(0, ...data.threads.map((t) => t.id)) + 1;
 
-  // Log requests
-  app.use(async (ctx, next) => {
-    const start = Date.now();
-    await next();
-    if (process.env.NODE_ENV !== 'test') {
-      console.log('[threads] %s %s - %s - %sms', ctx.method, ctx.url, ctx.status, Date.now() - start);
-    }
-  });
-  app.use(bodyParser());
+  const obs = observability('threads');
+  app.use(obs.middleware);
+  app.use(bodyParser({ jsonLimit: '100kb' }));
 
   router.get('/api/threads', (ctx) => {
     ctx.body = [...data.threads].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -47,7 +42,7 @@ function createApp(data = structuredClone(seed)) {
   });
 
   router.get('/health', (ctx) => {
-    ctx.body = { service: 'threads', status: 'ok', uptime: process.uptime(), count: data.threads.length };
+    ctx.body = { service: 'threads', status: 'ok', uptime: process.uptime(), ...obs.stats, count: data.threads.length };
   });
 
   app.use(router.routes());

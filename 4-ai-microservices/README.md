@@ -53,6 +53,30 @@ respuesta indica `mode: "claude"` o `mode: "demo"`.
 **Resiliencia.** Si el servicio `ai` está caído o tarda demasiado, `posts` publica igual: la
 moderación nunca tumba la funcionalidad principal.
 
+## Observabilidad y protección
+
+- **Trazas entre servicios**: el gateway asigna un `x-request-id` (o respeta el que llega) y cada
+  servicio lo reenvía en sus llamadas. Un solo id sigue la petición de punta a punta:
+
+  ```bash
+  curl -X POST localhost:8080/api/posts -H 'x-request-id: demo-trace-42' \
+       -H 'content-type: application/json' -d '{"thread":2,"user":5,"text":"BMO lleva los controles"}'
+  docker compose logs --no-log-prefix | grep demo-trace-42
+  ```
+  ```json
+  {"service":"ai","requestId":"demo-trace-42","method":"POST","path":"/api/ai/moderate","status":200,"ms":10}
+  {"service":"posts","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":45}
+  {"service":"gateway","requestId":"demo-trace-42","method":"POST","path":"/api/posts","status":201,"ms":74}
+  ```
+- **Logs JSON** de una línea por petición, listos para CloudWatch Logs Insights.
+- **Métricas**: el `/health` de cada servicio incluye `requests` y `errors` (5xx); el panel de la web los muestra.
+- **Rate limit**: las llamadas que gastan IA (`POST /api/ai/*` y `POST /api/posts`) tienen un límite por
+  cliente y minuto; al superarlo el gateway responde `429` con `Retry-After`.
+- **Cabeceras de seguridad**: CSP estricta (`script-src 'self'`), `nosniff`, `no-referrer`.
+- **Límite de tamaño**: cuerpos de más de 100 KB se rechazan con `413` antes de llegar a los servicios.
+- **Arranque ordenado**: Docker Compose espera a que cada servicio pase su `HEALTHCHECK` antes de
+  abrir el gateway.
+
 ## Ejecutar
 
 Con Docker:
@@ -72,13 +96,20 @@ npm run dev     # levanta los 5 servicios en :3001-3004 y el gateway en :8080
 npm test        # pruebas con node:test
 ```
 
-Variables de entorno del servicio `ai`:
+Variables del servicio `ai`:
 
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
 | `ANTHROPIC_API_KEY` | — | Activa Claude |
 | `CLAUDE_MODEL` | `claude-opus-5-5` | Modelo a usar |
 | `USERS_URL`, `THREADS_URL`, `POSTS_URL` | `http://localhost:300x` | Ubicación de los otros servicios |
+
+Variables del `gateway`:
+
+| Variable | Por defecto | Descripción |
+|----------|-------------|-------------|
+| `AI_RATE_LIMIT` | `20` | Llamadas con IA por cliente y minuto |
+| `TRUST_PROXY` | `false` | Ponlo en `true` detrás de un ALB para leer la IP real de `X-Forwarded-For` |
 
 Los datos viven en memoria y se reinician con cada arranque, igual que en las partes anteriores.
 

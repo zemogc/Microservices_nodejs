@@ -254,7 +254,8 @@ async function refreshHealth() {
       ${health.services
         .map((s) => {
           const extra = s.mode ? ` · ${s.mode}` : s.count != null ? ` · ${s.count} items` : '';
-          return node('', s.status, s.name, `${DESCRIPTIONS[s.name] ?? ''}${extra}`, `${s.latencyMs}ms`);
+          const traffic = s.requests != null ? ` · ${s.requests} req${s.errors ? ` · ${s.errors} err` : ''}` : '';
+          return node('', s.status, s.name, `${DESCRIPTIONS[s.name] ?? ''}${extra}${traffic}`, `${s.latencyMs}ms`);
         })
         .join('')}
     </div>`;

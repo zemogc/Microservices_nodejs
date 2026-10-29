@@ -3,6 +3,7 @@ const Router = require('@koa/router');
 const { bodyParser } = require('@koa/bodyparser');
 const claude = require('./claude');
 const demo = require('./demo');
+const { observability } = require('./observability');
 
 const urls = () => ({
   users: process.env.USERS_URL || 'http://localhost:3001',
@@ -10,31 +11,31 @@ const urls = () => ({
   posts: process.env.POSTS_URL || 'http://localhost:3003',
 });
 
-async function getJson(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+async function getJson(url, headers) {
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
   return res.json();
 }
 
 // Gathers everything the models need about a thread from the other services
-async function loadThread(threadId) {
+async function loadThread(threadId, headers) {
   const { users, threads, posts } = urls();
   const [thread, threadPosts, allUsers] = await Promise.all([
-    getJson(`${threads}/api/threads/${threadId}`),
-    getJson(`${posts}/api/posts/in-thread/${threadId}`),
-    getJson(`${users}/api/users`),
+    getJson(`${threads}/api/threads/${threadId}`, headers),
+    getJson(`${posts}/api/posts/in-thread/${threadId}`, headers),
+    getJson(`${users}/api/users`, headers),
   ]);
   return thread && { thread, posts: threadPosts ?? [], users: allUsers ?? [] };
 }
 
 // Everything at once, for questions about the whole forum
-async function loadForum() {
+async function loadForum(headers) {
   const { users, threads, posts } = urls();
   const [allThreads, allPosts, allUsers] = await Promise.all([
-    getJson(`${threads}/api/threads`),
-    getJson(`${posts}/api/posts`),
-    getJson(`${users}/api/users`),
+    getJson(`${threads}/api/threads`, headers),
+    getJson(`${posts}/api/posts`, headers),
+    getJson(`${users}/api/users`, headers),
   ]);
   return { threads: allThreads ?? [], posts: allPosts ?? [], users: allUsers ?? [] };
 }
@@ -64,15 +65,9 @@ function createApp() {
   const router = new Router();
   const summaries = new Map();
 
-  // Log requests
-  app.use(async (ctx, next) => {
-    const start = Date.now();
-    await next();
-    if (process.env.NODE_ENV !== 'test') {
-      console.log('[ai] %s %s - %s - %sms', ctx.method, ctx.url, ctx.status, Date.now() - start);
-    }
-  });
-  app.use(bodyParser());
+  const obs = observability('ai');
+  app.use(obs.middleware);
+  app.use(bodyParser({ jsonLimit: '100kb' }));
 
   router.get('/api/ai/status', (ctx) => {
     ctx.body = claude.isEnabled()
@@ -83,7 +78,7 @@ function createApp() {
   router.post('/api/ai/summarize', async (ctx) => {
     const threadId = parseInt(ctx.request.body?.threadId);
     if (!Number.isInteger(threadId)) ctx.throw(400, 'threadId is required');
-    const thread = await loadThread(threadId);
+    const thread = await loadThread(threadId, obs.forward(ctx));
     if (!thread) ctx.throw(404, 'Thread not found');
 
     const key = summaryKey(thread);
@@ -104,7 +99,7 @@ function createApp() {
     const question = ctx.request.body?.question;
     if (typeof question !== 'string' || !question.trim()) ctx.throw(400, 'question is required');
     if (question.length > 500) ctx.throw(400, 'question is too long');
-    const forum = await loadForum();
+    const forum = await loadForum(obs.forward(ctx));
 
     const result = await run('ask', () => claude.ask(forum, question.trim()), () => demo.ask(forum, question.trim()));
     // Only keep sources that point to real threads, and attach their titles for the UI
@@ -118,7 +113,7 @@ function createApp() {
     const threadId = parseInt(ctx.request.body?.threadId);
     const userId = parseInt(ctx.request.body?.userId);
     if (!Number.isInteger(threadId) || !Number.isInteger(userId)) ctx.throw(400, 'threadId and userId are required');
-    const thread = await loadThread(threadId);
+    const thread = await loadThread(threadId, obs.forward(ctx));
     if (!thread) ctx.throw(404, 'Thread not found');
     const author = thread.users.find((u) => u.id === userId);
     if (!author) ctx.throw(404, 'User not found');
@@ -138,7 +133,7 @@ function createApp() {
   });
 
   router.get('/health', (ctx) => {
-    ctx.body = { service: 'ai', status: 'ok', uptime: process.uptime(), mode: claude.isEnabled() ? 'claude' : 'demo' };
+    ctx.body = { service: 'ai', status: 'ok', uptime: process.uptime(), ...obs.stats, mode: claude.isEnabled() ? 'claude' : 'demo' };
   });
 
   app.use(router.routes());
